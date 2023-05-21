@@ -40,7 +40,7 @@ s_block* extend_new_block(size_t size){
     s_block *new_block;
     new_block = sbrk(0);
 
-    if(sbrk(sizeof(s_block) + size) == (void *)-1){
+    if(sbrk(SIZE_BLOCK + size) == (void *)-1){
         return NULL;
     }
 
@@ -78,7 +78,7 @@ void split_block(s_block *block, size_t size){
 }
 
 size_t align8(size_t s) {
-    if(s & 0x7 == 0){
+    if(s % 8 == 0){
        return s;
     }
  
@@ -256,7 +256,11 @@ void *realloc(void *p, size_t size){
     pthread_mutex_unlock(&malloc_mutex);
     return res;
 }
-#define malloc(X) malloc1(X)
-int main(){
-    printf("%d\n", debug);
-}
+
+// int main(){
+//     void *a = sbrk(0);
+//     void *b = malloc(16);
+//     void *c = malloc(1);
+//     size_t s = align8(7);
+//     printf("%d %p %p %p\n", s, a, b, c);
+// }

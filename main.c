@@ -2,8 +2,8 @@
 #include <pthread.h>
 
 const int n = 9;
-void *arr[n / 3];
-void *pointer[n];
+char *arr[3];
+void *pointer[9];
 
 void *make_blocks(void *argc){
 	int i = *((int *)argc);
@@ -20,11 +20,15 @@ void *fill_blocks(void *argc){
 		list[i * 3][j] = i;
 	}
 	for(j = 0; j < 1024 / sizeof(int); j += sizeof(int)){
-		list[i * 3][j] = i;
+		list[i * 3 + 1][j] = i;
 	}
 	for(j = 0; j < 4096 / sizeof(int); j += sizeof(int)){
-		list[i * 3][j] = i;
+		list[i * 3 + 2][j] = i;
 	}
+	free(list[i * 3]);
+	free(list[i * 3 + 1]);
+	free(list[i * 3 + 2]);
+
 }
 
 void *output_info(void *argc){
@@ -41,8 +45,13 @@ int main(){
 	for(i = 0; i < n; ++i){
 		if(i < n / 3){
 			pthread_create(threads + i, NULL, make_blocks, number + i);
-		}else if(i > 2 * n / 3){
-
 		}
+	}
+	// int i =0;
+	// pointer[0 * 3] = malloc(16);
+	// pointer[0 * 3 + 1] = malloc(16);
+	// pointer[0 * 3 + 2] = malloc(1);
+	for(i = 0; i < 9; ++i){
+		printf("%p\n", pointer[i]);
 	}
 }
