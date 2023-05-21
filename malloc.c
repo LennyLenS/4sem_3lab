@@ -1,8 +1,10 @@
+#undef malloc
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <pthread.h>
 
 typedef struct s_block{
     size_t size;
@@ -12,8 +14,9 @@ typedef struct s_block{
     int padding;
 }s_block;
 
-s_block *first_block = NULL;
+static s_block *first_block = NULL;
 const size_t SIZE_BLOCK = sizeof(s_block);
+static pthread_mutex_t malloc_mutex;
 
 s_block* find_block(size_t size){
     s_block *cur_block = first_block;
@@ -110,6 +113,13 @@ void *my_malloc(size_t size){
     return ((void *)block) + SIZE_BLOCK;
 }
 
+void *malloc(size_t size){
+    pthread_mutex_lock(&malloc_mutex);
+    void *ans = my_malloc(size);
+    pthread_mutex_unlock(&malloc_mutex);
+    return ans;
+}
+
 void *my_calloc(size_t number, size_t size){
     size_t *new;
     size_t s8, i;
@@ -125,6 +135,12 @@ void *my_calloc(size_t number, size_t size){
     return new;
 }
 
+void *calloc(size_t number, size_t size){
+    pthread_mutex_lock(&malloc_mutex);
+    void *ans = my_calloc(number, size);
+    pthread_mutex_unlock(&malloc_mutex);
+    return ans;
+}
 int valid_addres(void *p){
     if(first_block){
         if(p >= (void *)first_block && p < sbrk(0)){
@@ -157,7 +173,7 @@ s_block *fusion(s_block *block){
     return block;
 }
 
-void free(void *p){
+void my_free(void *p){
     s_block *block;
     if(valid_addres(p)){
         block = (s_block *)(p - SIZE_BLOCK);
@@ -181,6 +197,12 @@ void free(void *p){
     }
 }
 
+void free(void *p){
+    pthread_mutex_lock(&malloc_mutex);
+    my_free(p);
+    pthread_mutex_unlock(&malloc_mutex);
+}
+
 void copy_block(s_block *src, s_block *dst){
     size_t *sdata, *ddata;
     size_t i;
@@ -189,7 +211,6 @@ void copy_block(s_block *src, s_block *dst){
     for(i = 0; (i * 8) < src->size && (i * 8) < dst->size; ++i){
         ddata[i] = sdata[i];
     }
-
 }
 
 void *my_realloc(void *p, size_t size){
@@ -220,7 +241,7 @@ void *my_realloc(void *p, size_t size){
                 }
                 new_block = (s_block *)(newp - SIZE_BLOCK);
                 copy_block(block, new_block);
-                free(p);
+                my_free(p);
                 return newp;
             }
         }
@@ -229,13 +250,13 @@ void *my_realloc(void *p, size_t size){
     return NULL;
 }
 
+void *realloc(void *p, size_t size){
+    pthread_mutex_lock(&malloc_mutex);
+    void *res = my_realloc(p, size);
+    pthread_mutex_unlock(&malloc_mutex);
+    return res;
+}
+#define malloc(X) malloc1(X)
 int main(){
-    void *a = sbrk(0);
-    int *m = (int *)my_calloc(2, sizeof(int));
-    printf("%d\n", m[0]);
-    void *n = my_realloc(NULL, 2);
-    void *b = sbrk(0);
-    
-    void *c = sbrk(0);
-    printf("%p %p %p %p\n", a, m, n, c);
+    printf("%d\n", debug);
 }
