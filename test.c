@@ -4,7 +4,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
-typedef struct{
+typedef struct s_block{
     size_t size;
     struct s_block *next;
     struct s_block *prev;
@@ -26,6 +26,7 @@ s_block* find_block(size_t size){
                 ans = cur_block;
             }
         }
+        cur_block = cur_block->next;
         flag = 0;
     }
 
@@ -109,7 +110,7 @@ void *my_malloc(size_t size){
     return ((void *)block) + SIZE_BLOCK;
 }
 
-void *calloc(size_t number, size_t size){
+void *my_calloc(size_t number, size_t size){
     size_t *new;
     size_t s8, i;
     new = my_malloc(number * size);
@@ -126,15 +127,16 @@ void *calloc(size_t number, size_t size){
 
 int valid_addres(void *p){
     if(first_block){
-        if(p >= first_block && p < sbrk(0)){
+        if(p >= (void *)first_block && p < sbrk(0)){
             int flag = 1, valid_flag = 0;
-            s_block cur_block = first_block;
+            s_block *cur_block = first_block;
 
             while(cur_block && (cur_block != first_block || flag)){
                 if(cur_block == p - SIZE_BLOCK){
                     valid_flag = 1;
                     break;
                 }
+                cur_block = cur_block->next;
                 flag = 0;
             }
             return valid_flag;
@@ -143,12 +145,97 @@ int valid_addres(void *p){
     return 0;
 }
 
+s_block *fusion(s_block *block){
+    if(block->next != block && block->next->free){
+        block->size += SIZE_BLOCK + block->next->size;
+        block->next = block->next->next;
+        if(block->next){
+            block->next->prev = block;
+        }
+    }
 
-int main(){
-    void *b = sbrk(0);
-    void *a = my_malloc(5);
-    void *c = my_malloc(15);
-    printf("%p % p %p\n", b, a, c);
-    printf("%d\n", sizeof(s_block));
+    return block;
 }
 
+void free(void *p){
+    s_block *block;
+    if(valid_addres(p)){
+        block = (s_block *)(p - SIZE_BLOCK);
+        block->free = 1;
+        if(block->prev != block && block->prev->free){
+            block = fusion(block->prev);
+        }
+        if(block->next != block && block->next->free){
+            block = fusion(block);
+        }
+
+        if(block != first_block && block->next == first_block){
+            first_block->prev = block->prev;
+            block->prev->next = first_block;
+            sbrk(-SIZE_BLOCK - block->size);
+        }
+        if(block == first_block && block->next == first_block){
+            sbrk(-SIZE_BLOCK - block->size);
+            first_block = NULL;
+        }
+    }
+}
+
+void copy_block(s_block *src, s_block *dst){
+    size_t *sdata, *ddata;
+    size_t i;
+    sdata = (size_t *)((char *)src + SIZE_BLOCK);
+    ddata = (size_t *)((char *)dst + SIZE_BLOCK);
+    for(i = 0; (i * 8) < src->size && (i * 8) < dst->size; ++i){
+        ddata[i] = sdata[i];
+    }
+
+}
+
+void *my_realloc(void *p, size_t size){
+    size_t s;
+    s_block *block, *new_block;
+
+    if(!p){
+        return my_malloc(size);
+    }
+
+    if(valid_addres(p)){
+        s = align8(size);
+        block = (s_block *)(p - SIZE_BLOCK);
+        if(block->size >= s){
+            if(block->size - s >= (SIZE_BLOCK + 8)){
+                split_block(block, s);
+            }  
+        }else{
+            if(block->next != block && block->next->free && (block->size + SIZE_BLOCK + block->next->size) >= s){
+                block = fusion(block);
+                if(block->size - s >= (SIZE_BLOCK + 8)){
+                    split_block(block, s);
+                }
+            }else{
+                void *newp = my_malloc(s);
+                if(!newp){
+                    return NULL;
+                }
+                new_block = (s_block *)(newp - SIZE_BLOCK);
+                copy_block(block, new_block);
+                free(p);
+                return newp;
+            }
+        }
+        return p; 
+    }
+    return NULL;
+}
+
+int main(){
+    void *a = sbrk(0);
+    int *m = (int *)my_calloc(2, sizeof(int));
+    printf("%d\n", m[0]);
+    void *n = my_realloc(NULL, 2);
+    void *b = sbrk(0);
+    
+    void *c = sbrk(0);
+    printf("%p %p %p %p\n", a, m, n, c);
+}
