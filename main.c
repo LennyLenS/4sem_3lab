@@ -1,16 +1,19 @@
 #include <malloc.h>
 #include <pthread.h>
 
-const int n = 9;
+const int n = 9; // N
 char *arr[3];
 void *pointer[9];
+static pthread_mutex_t output_file, printf_mut;
 
 void *make_blocks(void *argc){
 	int i = *((int *)argc);
 	pointer[i * 3] = malloc(16);
 	pointer[i * 3 + 1] = malloc(1024);
 	pointer[i * 3 + 2] = malloc(4096);
-	printf("%p %p %p\n", pointer + i * 3, pointer + i * 3 + 1, pointer + i * 3 + 2);
+	pthread_mutex_lock(&printf_mut);
+	printf("%p %p %p\n", pointer[i * 3], pointer[i * 3 + 1], pointer[i * 3 + 2]);
+	pthread_mutex_unlock(&printf_mut);
 }
 
 void *fill_blocks(void *argc){
@@ -28,13 +31,12 @@ void *fill_blocks(void *argc){
 	}
 }
 
-static pthread_mutex_t output_file;
-
 void *output_info(void *argc) {
 	int i = *((int *)argc) % (n / 3);
 	pthread_mutex_lock(&output_file);
 	FILE *file = fopen("log.txt", "a");
-	fprintf(file, "%p %p %p\n", pointer + i * 3, pointer + i * 3 + 1, pointer + i * 3 + 2);
+	fprintf(file, "%p %p %p\n",  pointer[i * 3], pointer[i * 3 + 1], pointer[i * 3 + 2]);
+	fclose(file);
 	free(pointer[i * 3]);
 	free(pointer[i * 3 + 1]);
 	free(pointer[i * 3 + 2]);
